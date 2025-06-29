@@ -55,8 +55,6 @@ const GRID: [[i32; COLS]; ROWS] = [
 fn init_grid() {
     for (i, row) in GRID.iter().enumerate() {
         for (j, &cell) in row.iter().enumerate() {
-            println!("{}{}", i, j);
-
             // Coordinates in pixels
             let tile_x: f32 = j as f32 * TILESIZE as f32;
             let tile_y: f32 = i as f32 * TILESIZE as f32;
@@ -95,16 +93,16 @@ fn init_player(x: &mut f32, y: &mut f32, rotation_angle: &mut f32) {
         *y -= 1.0 * rotation_angle.sin();
     }
     if is_key_down(KeyCode::Right) {
-        *rotation_angle += 0.1 * (PI / 180.0);
+        *rotation_angle += 0.5 * (PI / 180.0);
     }
     if is_key_down(KeyCode::Left) {
-        *rotation_angle -= 0.1 * (PI / 180.0);
+        *rotation_angle -= 0.5 * (PI / 180.0);
     }
 
     draw_circle(*x, *y, radius, RED);
 }
 
-fn draw_rays(x: f32, y: f32, rotation_angle: f32) {
+fn draw_rays(mut x: f32, mut y: f32, rotation_angle: f32) {
     let start_angle: f32 = rotation_angle - (FOV / 2.0);
     let end_angle: f32 = rotation_angle + (FOV / 2.0);
     let mut temp_angle: f32 = start_angle;
@@ -127,46 +125,55 @@ fn draw_rays(x: f32, y: f32, rotation_angle: f32) {
     //     temp_angle += gap_angle;
     // }
 
-    let x2 = x + rotation_angle.cos() * 500.0;
-    let y2 = y + rotation_angle.sin() * 500.0;
+    loop {
+        let x2 = x + rotation_angle.cos();
+        let y2 = y + rotation_angle.sin();
 
-    let x1_snap = snap_x(x2, rotation_angle);
-    let y2_snap = snap_y(y2, rotation_angle);
+        let x1_snap = snap_x(x2, rotation_angle);
+        let y2_snap = snap_y(y2, rotation_angle);
 
-    let y1_snap = (rotation_angle.tan() * (x1_snap - x)) + y;
-    let x2_snap = ((y2_snap - y) / rotation_angle.tan()) + x;
+        let y1_snap = (rotation_angle.tan() * (x1_snap - x)) + y;
+        let x2_snap = ((y2_snap - y) / rotation_angle.tan()) + x;
 
-    // calculate the distance of x_snap to ray distance without snapping
+        // calculate the distance of x_snap to ray distance
+        let len_snap_1 = distance(x1_snap, y1_snap, x2, y2);
+        let len_snap_2 = distance(x2_snap, y2_snap, x2, y2);
 
-    let snap_delta_x = distance(x1_snap, y2, x2, y2);
-    let snap_delta_y = distance(x2, y2_snap, x2, y2);
-
-    draw_circle(x2_snap, y2_snap, 20.0, GREEN);
-    draw_circle(x1_snap, y1_snap, 20.0, YELLOW);
-    // if snap_delta_x > snap_delta_y {
-    //     draw_line(x, y, x2, y2_snap, 2.0, RED);
-    // }
-    // if snap_delta_x < snap_delta_y {
-    //     draw_line(x, y, x1_snap, y2, 2.0, RED);
-    // }
-
-    draw_line(x, y, x2, y2, 2.0, RED);
+        if len_snap_1 >= len_snap_2 {
+            draw_circle(x2_snap, y2_snap, 20.0, GREEN);
+            draw_line(x, y, x2_snap, y2_snap, 2.0, RED);
+            if has_wall_at(x2_snap, y2_snap) {
+                break;
+            }
+            x = x2_snap;
+            y = y2_snap;
+        }
+        if len_snap_1 < len_snap_2 {
+            draw_circle(x1_snap, y1_snap, 20.0, GREEN);
+            draw_line(x, y, x1_snap, y1_snap, 2.0, RED);
+            if has_wall_at(x1_snap, y1_snap) {
+                break;
+            }
+            x = x1_snap;
+            y = y1_snap;
+        }
+    }
 }
 
 fn snap_x(pixel_coordinate: f32, rotation_angle: f32) -> f32 {
     if rotation_angle.cos() >= 0.0 {
-        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32
+        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32 + 1e-1
     } else if rotation_angle.cos() < 0.0 {
-        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32
+        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32 - 1e-1
     } else {
         unreachable!()
     }
 }
 fn snap_y(pixel_coordinate: f32, rotation_angle: f32) -> f32 {
     if rotation_angle.sin() > 0.0 {
-        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32
+        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32 + 1e-1
     } else if rotation_angle.sin() <= 0.0 {
-        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32
+        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32 - 1e-1
     } else {
         unreachable!()
     }
