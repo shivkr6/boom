@@ -85,12 +85,20 @@ fn init_player(x: &mut f32, y: &mut f32, rotation_angle: &mut f32) {
 
     // Using multiple if statements instead of a single if-else if statement to ensure that multiple key presses are handled correctly
     if is_key_down(KeyCode::Up) {
-        *x += 1.0 * rotation_angle.cos();
-        *y += 1.0 * rotation_angle.sin();
+        let next_x = *x + (1.0 * rotation_angle.cos());
+        let next_y = *y + (1.0 * rotation_angle.sin());
+        if !has_wall_at(next_x, next_y) {
+            *x = next_x;
+            *y = next_y;
+        }
     }
     if is_key_down(KeyCode::Down) {
-        *x -= 1.0 * rotation_angle.cos();
-        *y -= 1.0 * rotation_angle.sin();
+        let next_x = *x - (1.0 * rotation_angle.cos());
+        let next_y = *y - (1.0 * rotation_angle.sin());
+        if !has_wall_at(next_x, next_y) {
+            *x = next_x;
+            *y = next_y;
+        }
     }
     if is_key_down(KeyCode::Right) {
         *rotation_angle += 0.5 * (PI / 180.0);
@@ -102,78 +110,64 @@ fn init_player(x: &mut f32, y: &mut f32, rotation_angle: &mut f32) {
     draw_circle(*x, *y, radius, RED);
 }
 
-fn draw_rays(mut x: f32, mut y: f32, rotation_angle: f32) {
+fn draw_rays(x: f32, y: f32, rotation_angle: f32) {
     let start_angle: f32 = rotation_angle - (FOV / 2.0);
     let end_angle: f32 = rotation_angle + (FOV / 2.0);
-    let mut temp_angle: f32 = start_angle;
+    let mut ray_angle: f32 = start_angle;
 
     let gap_angle: f32 = FOV / (NUM_RAYS - 1) as f32;
 
-    // while temp_angle <= end_angle {
-    //     // ending ray position assume karege kuch
-    //     // fir check karege step loop mai (use DDA simple wala) ki wall se hit ho rhi kya ray by converting coordinates to grid
-    //     // if it hits the grid then we stop and store the distance into a variable
-    //     // fir ye draw line wala function execute kar dege aur vo ray ko draw kar dege
-    //     draw_line(
-    //         x,
-    //         y,
-    //         x + temp_angle.cos() * 500.0,
-    //         y + temp_angle.sin() * 500.0,
-    //         2.0,
-    //         RED,
-    //     );
-    //     temp_angle += gap_angle;
-    // }
+    while ray_angle <= end_angle {
+        let mut x2 = x + ray_angle.cos() * 1e-4;
+        let mut y2 = y + ray_angle.sin() * 1e-4;
+        loop {
+            let x1_snap = snap_x(x2, ray_angle);
+            let y2_snap = snap_y(y2, ray_angle);
 
-    loop {
-        let x2 = x + rotation_angle.cos();
-        let y2 = y + rotation_angle.sin();
+            let y1_snap = (ray_angle.tan() * (x1_snap - x2)) + y2;
+            let x2_snap = ((y2_snap - y2) / ray_angle.tan()) + x2;
 
-        let x1_snap = snap_x(x2, rotation_angle);
-        let y2_snap = snap_y(y2, rotation_angle);
+            // calculate the distance of x_snap to ray distance
+            let len_snap_1 = distance(x1_snap, y1_snap, x2, y2);
+            let len_snap_2 = distance(x2_snap, y2_snap, x2, y2);
 
-        let y1_snap = (rotation_angle.tan() * (x1_snap - x)) + y;
-        let x2_snap = ((y2_snap - y) / rotation_angle.tan()) + x;
-
-        // calculate the distance of x_snap to ray distance
-        let len_snap_1 = distance(x1_snap, y1_snap, x2, y2);
-        let len_snap_2 = distance(x2_snap, y2_snap, x2, y2);
-
-        if len_snap_1 >= len_snap_2 {
-            draw_circle(x2_snap, y2_snap, 20.0, GREEN);
-            draw_line(x, y, x2_snap, y2_snap, 2.0, RED);
-            if has_wall_at(x2_snap, y2_snap) {
-                break;
+            if len_snap_1 >= len_snap_2 {
+                // draw_circle(x2_snap, y2_snap, 20.0, GREEN);
+                draw_line(x2, y2, x2_snap, y2_snap, 2.0, RED);
+                if has_wall_at(x2_snap, y2_snap) {
+                    break;
+                }
+                x2 = x2_snap;
+                y2 = y2_snap;
             }
-            x = x2_snap;
-            y = y2_snap;
-        }
-        if len_snap_1 < len_snap_2 {
-            draw_circle(x1_snap, y1_snap, 20.0, GREEN);
-            draw_line(x, y, x1_snap, y1_snap, 2.0, RED);
-            if has_wall_at(x1_snap, y1_snap) {
-                break;
+            if len_snap_1 < len_snap_2 {
+                // draw_circle(x1_snap, y1_snap, 20.0, GREEN);
+                draw_line(x2, y2, x1_snap, y1_snap, 2.0, RED);
+                if has_wall_at(x1_snap, y1_snap) {
+                    break;
+                }
+                x2 = x1_snap;
+                y2 = y1_snap;
             }
-            x = x1_snap;
-            y = y1_snap;
         }
+        ray_angle += gap_angle;
     }
 }
 
 fn snap_x(pixel_coordinate: f32, rotation_angle: f32) -> f32 {
     if rotation_angle.cos() >= 0.0 {
-        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32 + 1e-1
+        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32 + 1e-4
     } else if rotation_angle.cos() < 0.0 {
-        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32 - 1e-1
+        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32 - 1e-4
     } else {
         unreachable!()
     }
 }
 fn snap_y(pixel_coordinate: f32, rotation_angle: f32) -> f32 {
     if rotation_angle.sin() > 0.0 {
-        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32 + 1e-1
+        (pixel_coordinate / TILESIZE as f32).ceil() * TILESIZE as f32 + 1e-4
     } else if rotation_angle.sin() <= 0.0 {
-        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32 - 1e-1
+        (pixel_coordinate / TILESIZE as f32).floor() * TILESIZE as f32 - 1e-4
     } else {
         unreachable!()
     }
@@ -183,6 +177,13 @@ fn distance(x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
     ((x2 - x1).powi(2) + (y2 - y1).powi(2)).sqrt()
 }
 fn has_wall_at(x_pixel_coordinate: f32, y_pixel_coordinate: f32) -> bool {
+    if x_pixel_coordinate < 0.0
+        || x_pixel_coordinate >= WINDOW_WIDTH as f32
+        || y_pixel_coordinate < 0.0
+        || y_pixel_coordinate >= WINDOW_HEIGHT as f32
+    {
+        return true;
+    }
     GRID[(y_pixel_coordinate / TILESIZE as f32).floor() as usize]
         [(x_pixel_coordinate / TILESIZE as f32).floor() as usize]
         == 1
